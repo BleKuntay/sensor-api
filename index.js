@@ -64,6 +64,27 @@ app.post('/api/sensors', async (req, res) => {
     }
 });
 
+app.get('/api/sensors/latest-data', async (req, res) => {
+    try {
+        // Query untuk mendapatkan data sensor terbaru berdasarkan waktu (created_at)
+        const latestData = await Sensor.findOne().sort({ created_at: -1 }); // Sort descending (data terbaru di atas)
+
+        if (!latestData) {
+            return res.status(404).json({ message: 'No sensor data found' });
+        }
+
+        // Kembalikan data sensor terbaru ke client
+        res.status(200).json({
+            message: 'Latest sensor data retrieved successfully',
+            data: latestData
+        });
+    } catch (err) {
+        // Tangani error
+        console.error('Error fetching latest sensor data:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
 // Jalankan server pada port 3000
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
