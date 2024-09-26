@@ -1,44 +1,70 @@
 const express = require('express');
-const { Pool } = require('pg');  // Library untuk PostgreSQL
+const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 
-// Inisialisasi Express dan body-parser
+// Inisialisasi Express
 const app = express();
+
+// Middleware untuk parsing JSON
 app.use(bodyParser.json());
 
-// Setup koneksi ke PostgreSQL menggunakan variabel lingkungan DATABASE_URL
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false
-    }
+// Connection string MongoDB Atlas (ganti <db_password> dengan password MongoDB kamu)
+const mongoURI = 'mongodb+srv://rikimcdougall:Gilgam3sh@sensor-storage.gofji.mongodb.net/sensor-storage?retryWrites=true&w=majority';
+
+// Koneksi ke MongoDB Atlas
+mongoose.connect(mongoURI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+    .then(() => {
+        console.log('Connected to MongoDB Atlas');
+    })
+    .catch((err) => {
+        console.error('Failed to connect to MongoDB Atlas', err);
+    });
+
+// Skema sensor
+const sensorSchema = new mongoose.Schema({
+    temperature: { type: Number, required: true },
+    humidity: { type: Number, required: true },
+    soil_moisture: { type: Number, required: true },
+    created_at: { type: Date, default: Date.now }
 });
 
-// Endpoint untuk menerima POST request dan menyimpan data ke PostgreSQL
+// Model untuk sensor
+const Sensor = mongoose.model('Sensor', sensorSchema);
+
+// Root endpoint untuk tes server
+app.get('/', (req, res) => {
+    res.send('Welcome to the Sensor Storage API');
+});
+
+// Endpoint POST untuk menerima data sensor
 app.post('/api/sensors', async (req, res) => {
     const { temperature, humidity, soil_moisture } = req.body;
 
-    try {
-        // Query SQL untuk memasukkan data ke tabel sensors
-        const query = `INSERT INTO sensors (temperature, humidity, soil_moisture) 
-                   VALUES ($1, $2, $3) RETURNING *`;
-        const values = [temperature, humidity, soil_moisture];
-        const result = await pool.query(query, values);
+    // Validasi sederhana untuk memastikan semua data dikirim
+    if (temperature == null || humidity == null || soil_moisture == null) {
+        return res.status(400).json({ message: 'Temperature, humidity, and soil moisture are required.' });
+    }
 
-        // Berikan response berhasil ke client
-        res.status(200).json({
-            message: 'Data inserted successfully',
-            data: result.rows[0]
-        });
+    // Membuat instance baru untuk data sensor
+    const newSensorData = new Sensor({
+        temperature,
+        humidity,
+        soil_moisture
+    });
+
+    try {
+        // Simpan data sensor ke MongoDB
+        const savedData = await newSensorData.save();
+        res.status(201).json({ message: 'Sensor data saved successfully', data: savedData });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({
-            message: 'Error inserting data'
-        });
+        res.status(500).json({ message: 'Error saving sensor data', error: err });
     }
 });
 
-// Jalankan server
+// Jalankan server pada port 3000
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
